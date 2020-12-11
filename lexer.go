@@ -6,14 +6,17 @@ import (
 	"unicode"
 )
 
+// Token integer type
 type Token int
 
+// TokenFormat is the format for parsing tokens
 type TokenFormat struct {
 	Pos Position
 	Tok Token
 	Lit string
 }
 
+// Token types
 const (
 	EOF = iota
 	ILLEGAL
@@ -21,6 +24,7 @@ const (
 	NUM
 	DEC
 	STR
+	NFSTR
 
 	PLUS
 	MINUS
@@ -71,6 +75,7 @@ const (
 	IMPORT
 	SWITCH
 	CASE
+	MODULE
 
 	FLOAT
 	FLOAT32
@@ -99,9 +104,10 @@ var tokens = []string{
 	ILLEGAL: "ILLEGAL",
 	IDENT:   "IDENT",
 
-	NUM: "NUM",
-	DEC: "DEC",
-	STR: "STR",
+	NUM:   "NUM",
+	DEC:   "DEC",
+	STR:   "STR",
+	NFSTR: "NFSTR",
 
 	PLUS:   "+",
 	MINUS:  "-",
@@ -152,6 +158,7 @@ var tokens = []string{
 	IMPORT:   "import",
 	SWITCH:   "switch",
 	CASE:     "case",
+	MODULE:   "module",
 
 	FLOAT:   "float",
 	FLOAT32: "float32",
@@ -179,16 +186,19 @@ func (t *Token) String() string {
 	return tokens[*t]
 }
 
+// Position holds the current line number and column number of the lexer
 type Position struct {
 	Line   int
 	Column int
 }
 
+// Lexer holds a position and a text buffer
 type Lexer struct {
 	Pos    Position
 	Reader *bufio.Reader
 }
 
+// NewLexer creates a new lexer
 func NewLexer(reader io.Reader) *Lexer {
 	return &Lexer{
 		Pos:    Position{Line: 1, Column: 0},
@@ -196,6 +206,12 @@ func NewLexer(reader io.Reader) *Lexer {
 	}
 }
 
+// Reset resets the lexer to a new lexer
+func (l *Lexer) Reset() {
+	l = NewLexer(l.Reader)
+}
+
+// Lex reads through the runes and determines their token type
 func (l *Lexer) Lex() (Position, Token, string) {
 	for {
 		r, _, err := l.Reader.ReadRune()
@@ -296,8 +312,12 @@ func (l *Lexer) Lex() (Position, Token, string) {
 			return startPos, LES, tokens[LES]
 		case '"':
 			startPos := l.Pos
-			lit := l.lexString()
+			lit := l.lexString('"')
 			return startPos, STR, lit
+		case '`':
+			startPos := l.Pos
+			lit := l.lexString('`')
+			return startPos, NFSTR, lit
 		default:
 			if unicode.IsSpace(r) {
 				continue
@@ -377,6 +397,8 @@ func (l *Lexer) Lex() (Position, Token, string) {
 					return startPos, SWITCH, lit
 				case "case":
 					return startPos, CASE, lit
+				case "module":
+					return startPos, MODULE, lit
 				default:
 					return startPos, IDENT, lit
 				}
@@ -469,7 +491,7 @@ func (l *Lexer) lexIdent() string {
 	}
 }
 
-func (l *Lexer) lexString() string {
+func (l *Lexer) lexString(sep rune) string {
 	var lit string
 	for {
 		r, _, err := l.Reader.ReadRune()
@@ -480,7 +502,7 @@ func (l *Lexer) lexString() string {
 			panic(err)
 		}
 		l.Pos.Column++
-		if r == '"' {
+		if r == sep {
 			return lit
 		} else if r == '\\' {
 			lit = lit + string(r)

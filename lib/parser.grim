@@ -1,0 +1,9 @@
+
+
+define object Parser {
+	File file
+
+	function init(File f) {
+		this.file = f
+	}
+}
