@@ -2,3 +2,4 @@ grim
 test.grim
 go.mod
 go.sum
+lib/*
